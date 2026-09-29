@@ -17,6 +17,7 @@ import {
   setStock,
   startShopCheckout,
   confirmShopCheckout,
+  voidLastSale,
 } from "@/lib/shop.functions";
 
 type Shop = {
@@ -338,11 +339,15 @@ function Floor({ shop, bootError }: { shop: Shop; bootError: string }) {
             products={products}
             basket={basket}
             setBasket={setBasket}
-            onPaid={async () => {
+            onPaid={async (method) => {
               await checkout({
-                data: { lines: basket.map((l) => ({ barcode: l.barcode, qty: l.qty })) },
+                data: { lines: basket.map((l) => ({ barcode: l.barcode, qty: l.qty })), method },
               });
               setBasket([]);
+              await load();
+            }}
+            onVoid={async () => {
+              await voidLastSale();
               await load();
             }}
             onError={setError}
@@ -588,18 +593,30 @@ function Till({
   basket,
   setBasket,
   onPaid,
+  onVoid,
   onError,
 }: {
   products: Product[];
   basket: Line[];
   setBasket: (next: Line[] | ((lines: Line[]) => Line[])) => void;
-  onPaid: () => Promise<void>;
+  onPaid: (method: "cash" | "card") => Promise<void>;
+  onVoid: () => Promise<void>;
   onError: (m: string) => void;
 }) {
   const { t } = useI18n();
   const [busy, setBusy] = useState(false);
   const [typed, setTyped] = useState("");
+  const [note, setNote] = useState("");
   const total = basket.reduce((n, l) => n + l.pricePence * l.qty, 0);
+
+  const pay = (method: "cash" | "card") => {
+    setBusy(true);
+    setNote("");
+    onPaid(method)
+      .then(() => setNote(method === "card" ? "Card taken." : "Cash taken."))
+      .catch((e: Error) => onError(e.message))
+      .finally(() => setBusy(false));
+  };
 
   const addCode = (raw: string) => {
     const code = raw.trim();
@@ -672,19 +689,51 @@ function Till({
         <p className="display text-5xl">
           {t.total} {money(total)}
         </p>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            disabled={!basket.length || busy}
+            className="rounded-full bg-accent px-4 py-5 text-xl font-semibold text-paper disabled:opacity-50"
+            onClick={() => pay("cash")}
+          >
+            {busy ? t.paying : t.cash}
+          </button>
+          <button
+            type="button"
+            disabled={!basket.length || busy}
+            className="rounded-full bg-ink px-4 py-5 text-xl font-semibold text-paper disabled:opacity-50"
+            onClick={() => pay("card")}
+          >
+            {busy ? t.paying : t.card}
+          </button>
+        </div>
         <button
           type="button"
           disabled={!basket.length || busy}
-          className="w-full rounded-full bg-accent px-4 py-5 text-2xl font-semibold text-paper disabled:opacity-50"
+          className="w-full rounded-full border border-line px-4 py-3 font-semibold disabled:opacity-50"
+          onClick={() => {
+            setBasket([]);
+            onError("");
+            setNote("");
+          }}
+        >
+          {t.cancelSale}
+        </button>
+        <button
+          type="button"
+          disabled={busy}
+          className="w-full rounded-full border border-danger px-4 py-3 font-semibold text-danger disabled:opacity-50"
           onClick={() => {
             setBusy(true);
-            onPaid()
+            onVoid()
+              .then(() => setNote(t.voided))
               .catch((e: Error) => onError(e.message))
               .finally(() => setBusy(false));
           }}
         >
-          {busy ? t.paying : t.pay}
+          {t.voidLast}
         </button>
+        {note ? <p className="font-semibold text-moss">{note}</p> : null}
         <p className="text-sm text-muted">{t.payNote}</p>
       </div>
     </section>
@@ -766,13 +815,17 @@ function Desk({
     stock: "0",
     category: "Grocery",
   });
-  const [sales, setSales] = useState<Array<{ id: number; totalPence: number; createdAt: string }>>([]);
+  const [sales, setSales] = useState<Array<{ id: number; totalPence: number; createdAt: string; method: string; voided: boolean }>>([]);
+  const [month, setMonth] = useState({ cash: 0, card: 0 });
   const out = products.filter((p) => p.stock <= 0).length;
   const low = products.filter((p) => p.stock > 0 && p.stock <= p.lowStockAt).length;
 
   useEffect(() => {
     listSales()
-      .then((rows) => setSales(rows))
+      .then((report) => {
+        setSales(report.rows);
+        setMonth({ cash: report.monthCash, card: report.monthCard });
+      })
       .catch((e: Error) => onError(e.message));
   }, [onError, products]);
 
@@ -783,6 +836,13 @@ function Desk({
         <Stat label="Low" value={String(low)} />
         <Stat label="Out" value={String(out)} />
       </div>
+      <article className="rounded-xl border border-line bg-card p-4">
+        <p className="text-sm text-muted">Taken this month</p>
+        <p className="display text-4xl">{money(month.cash + month.card)}</p>
+        <p className="mt-1 text-sm text-muted">
+          Cash {money(month.cash)} · Card {money(month.card)}
+        </p>
+      </article>
       <article className="rounded-xl border border-line bg-card p-4">
         <p className="text-sm text-muted">Staff join code</p>
         <p className="display text-3xl tracking-widest">{shop.joinCode}</p>
@@ -865,7 +925,9 @@ function Desk({
         {sales.map((s) => (
           <p key={s.id} className="mt-2 flex justify-between text-sm">
             <span className="text-muted">{s.createdAt.slice(0, 16).replace("T", " ")}</span>
-            <span className="font-semibold">{money(s.totalPence)}</span>
+            <span className="font-semibold">
+              {s.voided ? "Cancelled" : `${s.method === "card" ? "Card" : "Cash"} ${money(s.totalPence)}`}
+            </span>
           </p>
         ))}
       </div>

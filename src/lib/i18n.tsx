@@ -46,7 +46,13 @@ const copy = {
     total: "Total",
     pay: "Take cash payment",
     paying: "Taking payment…",
-    payNote: "Built for a tablet at the counter. This records the sale and drops stock.",
+    payNote: "Built for a tablet at the counter. Cash or card. Stock drops when the sale is taken.",
+    cash: "Cash",
+    card: "Card",
+    cancelSale: "Cancel this sale",
+    voidLast: "Undo last sale",
+    voided: "Last sale cancelled. Stock is back on the shelf.",
+    month: "Taken this month",
     nothing: "Nothing on the shelf for",
   },
   cy: {
@@ -258,7 +264,7 @@ export function LangProvider({ children }: { children: ReactNode }) {
     document.documentElement.lang = lang;
     document.documentElement.dir = lang === "ur" ? "rtl" : "ltr";
   }, [lang]);
-  return <Ctx.Provider value={{ lang, setLang, t: copy[lang] }}>{children}</Ctx.Provider>;
+  return <Ctx.Provider value={{ lang, setLang, t: { ...copy.en, ...copy[lang] } }}>{children}</Ctx.Provider>;
 }
 
 export function useI18n() {

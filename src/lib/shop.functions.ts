@@ -23,6 +23,10 @@ function billingOf(status: string, dueAt: string) {
   const due = new Date(dueAt).getTime();
   const lockAt = due + GRACE_MS;
   const now = Date.now();
+  // No Stripe key yet: the shop stays open so the till can be tested.
+  if (!process.env.STRIPE_SECRET_KEY?.trim()) {
+    return { status: status || "trial", dueAt, daysLeft: 14, locked: false, warn: false };
+  }
   const covered = Number.isFinite(due) && now < due && status !== "unpaid" && status !== "past_due";
   const locked = !covered && now >= lockAt;
   const warn = !covered && !locked;
@@ -104,7 +108,7 @@ export const createShop = createServerFn({ method: "POST" })
     const joinCode = newCode();
     await sql`
       insert into shops (id, name, join_code, billing_status, payment_due_at)
-      values (${id}, ${data.name}, ${joinCode}, 'unpaid', now())
+      values (${id}, ${data.name}, ${joinCode}, 'trial', now() + interval '14 days')
     `;
     await sql`
       insert into memberships (user_id, shop_id, role)
@@ -323,31 +327,81 @@ export const checkout = createServerFn({ method: "POST" })
       sold.push({ barcode: line.barcode, name: p.name, qty: line.qty, pricePence: price });
     }
     await sql`
-      insert into sales (shop_id, user_id, total_pence, items)
-      values (${m.shopId}, ${context.userId}, ${total}, ${JSON.stringify(sold)})
+      insert into sales (shop_id, user_id, total_pence, items, method)
+      values (${m.shopId}, ${context.userId}, ${total}, ${JSON.stringify(sold)}, ${data.method})
     `;
-    return { totalPence: total };
+    const saved = await sql<{ id: number }>`
+      select id from sales where shop_id = ${m.shopId} order by id desc limit 1
+    `;
+    return { totalPence: total, id: Number(saved[0]?.id ?? 0), method: data.method };
+  });
+
+export const voidLastSale = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const m = await assertOpen(context.userId);
+    if (!m) throw new Error("Join a shop first.");
+    const sql = await getSql();
+    const rows = await sql<{ id: number; items: string }>`
+      select id, items from sales
+      where shop_id = ${m.shopId} and voided = false
+      order by id desc
+      limit 1
+    `;
+    const sale = rows[0];
+    if (!sale) throw new Error("There is no sale to cancel.");
+    const items = JSON.parse(sale.items) as Array<{ barcode: string; qty: number }>;
+    for (const item of items) {
+      await sql`
+        update products set stock = stock + ${item.qty}, updated_at = now()
+        where shop_id = ${m.shopId} and barcode = ${item.barcode}
+      `;
+    }
+    await sql`update sales set voided = true where id = ${sale.id}`;
+    return { ok: true };
   });
 
 export const listSales = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const m = await mine(context.userId);
-    if (!m || m.role !== "admin") return [];
+    if (!m || m.role !== "admin") return { rows: [], monthCash: 0, monthCard: 0 };
     const sql = await getSql();
-    const rows = await sql<{ id: number; total_pence: number; items: string; created_at: string }>`
-      select id, total_pence, items, created_at::text as created_at
+    const rows = await sql<{
+      id: number;
+      total_pence: number;
+      items: string;
+      created_at: string;
+      method: string;
+      voided: boolean;
+    }>`
+      select id, total_pence, items, created_at::text as created_at, method, voided
       from sales
       where shop_id = ${m.shopId}
       order by id desc
       limit 20
     `;
-    return rows.map((r) => ({
-      id: Number(r.id),
-      totalPence: Number(r.total_pence),
-      createdAt: String(r.created_at),
-      items: String(r.items),
-    }));
+    const month = await sql<{ cash: number; card: number }>`
+      select
+        coalesce(sum(total_pence) filter (where method = 'cash'), 0) as cash,
+        coalesce(sum(total_pence) filter (where method = 'card'), 0) as card
+      from sales
+      where shop_id = ${m.shopId}
+        and voided = false
+        and created_at >= date_trunc('month', now())
+    `;
+    return {
+      rows: rows.map((r) => ({
+        id: Number(r.id),
+        totalPence: Number(r.total_pence),
+        createdAt: String(r.created_at),
+        items: String(r.items),
+        method: r.method,
+        voided: Boolean(r.voided),
+      })),
+      monthCash: Number(month[0]?.cash ?? 0),
+      monthCard: Number(month[0]?.card ?? 0),
+    };
   });
 
 export const startShopCheckout = createServerFn({ method: "POST" })
