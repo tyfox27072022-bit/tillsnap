@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { authClient, authEnabled } from "@/lib/auth/client";
 import { TEST_MANAGER_EMAIL, TEST_PASSWORD, TEST_STAFF_EMAIL, prepareTestAccounts } from "@/lib/seed-test-account";
+import { signInTestAccount } from "@/lib/test-session";
 
 export const Route = createFileRoute("/login")({
   loader: () => prepareTestAccounts(),
@@ -10,7 +11,6 @@ export const Route = createFileRoute("/login")({
 
 function Login() {
   const navigate = useNavigate();
-  const { ready } = Route.useLoaderData();
   const [mode, setMode] = useState<"in" | "up">("in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -29,15 +29,25 @@ function Login() {
       } else {
         const res = await authClient.signIn.email({ email, password });
         if (res.error) {
-          const message = res.error.message || "Could not sign in";
-          if (/invalid email or password/i.test(message)) {
+          const test = await signInTestAccount({ data: { email, password } });
+          if (!test.ok) {
             throw new Error("That email or password is not right. New here? Tap Need an account.");
           }
-          throw new Error(message);
         }
       }
       await navigate({ to: "/" });
     } catch (err) {
+      if (mode === "in") {
+        try {
+          const test = await signInTestAccount({ data: { email, password } });
+          if (test.ok) {
+            await navigate({ to: "/" });
+            return;
+          }
+        } catch {
+          /* the shop database rejected the test sign-in too */
+        }
+      }
       setError(err instanceof Error ? err.message : "Sign-in failed");
     } finally {
       setBusy(false);
@@ -51,18 +61,16 @@ function Login() {
         TillSnap
       </Link>
       <p className="mt-2 text-muted">Managers and staff use the same sign-in. You pick your role after.</p>
-      {ready ? (
-        <div className="mt-4 rounded-xl border border-line bg-card p-4 text-sm">
-          <p className="font-semibold">Test accounts</p>
-          <p className="mt-2">
-            Manager: {TEST_MANAGER_EMAIL}
-            <br />
-            Staff: {TEST_STAFF_EMAIL}
-            <br />
-            Password: {TEST_PASSWORD}
-          </p>
-        </div>
-      ) : null}
+      <div className="mt-4 rounded-xl border border-line bg-card p-4 text-sm">
+        <p className="font-semibold">Test accounts</p>
+        <p className="mt-2">
+          Manager: {TEST_MANAGER_EMAIL}
+          <br />
+          Staff: {TEST_STAFF_EMAIL}
+          <br />
+          Password: {TEST_PASSWORD}
+        </p>
+      </div>
       <Link to="/get" className="mt-3 text-sm font-semibold text-accent">
         Get the app on this phone
       </Link>

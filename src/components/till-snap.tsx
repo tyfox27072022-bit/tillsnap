@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import { Bell, Camera, LayoutGrid, ScanBarcode, Settings, ShoppingBag, Store } from "lucide-react";
 import { signOut } from "@/lib/auth/client";
+import { clearTestSession } from "@/lib/test-session";
 import { LangProvider, LANGS, useI18n } from "@/lib/i18n";
 import {
   checkout,
@@ -408,71 +409,99 @@ function BarcodeCam({
 }) {
   const [live, setLive] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const onCodeRef = useRef(onCode);
   const onErrorRef = useRef(onError);
   onCodeRef.current = onCode;
   onErrorRef.current = onError;
 
+  const start = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" } },
+      });
+      streamRef.current = stream;
+      setLive(true);
+    } catch (e) {
+      onErrorRef.current(e instanceof Error ? e.message : "Allow the camera to scan a barcode.");
+    }
+  };
+
   useEffect(() => {
     if (!live) return;
+    const video = videoRef.current;
+    const stream = streamRef.current;
+    if (!video || !stream) return;
     let stop = false;
-    let stream: MediaStream | null = null;
-    const Detector = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector;
-    (async () => {
-      try {
-        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } });
-        if (stop || !videoRef.current) return;
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        if (!Detector) return;
-        const detector = new Detector({
-          formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"],
-        });
-        let last = "";
-        let until = 0;
-        const tick = async () => {
-          if (stop || !videoRef.current) return;
-          try {
-            const codes = await detector.detect(videoRef.current);
-            const value = codes[0]?.rawValue;
-            const now = Date.now();
-            if (value && (value !== last || now >= until)) {
-              last = value;
-              until = now + 1400;
-              onCodeRef.current(value);
-              if (once) {
-                stop = true;
-                stream?.getTracks().forEach((t) => t.stop());
-                setLive(false);
-                return;
-              }
-            }
-          } catch {
-            /* frame not ready */
-          }
-          if (!stop) requestAnimationFrame(() => void tick());
-        };
-        void tick();
-      } catch (e) {
-        onErrorRef.current(e instanceof Error ? e.message : "Camera blocked");
+    let controls: { stop: () => void } | null = null;
+    video.srcObject = stream;
+    video.setAttribute("playsinline", "true");
+    void video.play().catch(() => undefined);
+
+    const seen = { last: "", until: 0 };
+    const accept = (value: string) => {
+      const now = Date.now();
+      if (!value || (value === seen.last && now < seen.until)) return;
+      seen.last = value;
+      seen.until = now + 1400;
+      onCodeRef.current(value);
+      if (once) {
+        stop = true;
+        controls?.stop();
+        stream.getTracks().forEach((track) => track.stop());
+        streamRef.current = null;
         setLive(false);
       }
-    })();
+    };
+
+    const Detector = (window as unknown as { BarcodeDetector?: DetectorCtor }).BarcodeDetector;
+    if (Detector) {
+      const detector = new Detector({
+        formats: ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "qr_code"],
+      });
+      const tick = async () => {
+        if (stop || !videoRef.current) return;
+        try {
+          const codes = await detector.detect(videoRef.current);
+          const value = codes[0]?.rawValue;
+          if (value) accept(value);
+        } catch {
+          /* frame not ready */
+        }
+        if (!stop) requestAnimationFrame(() => void tick());
+      };
+      void tick();
+    } else {
+      void import("@zxing/browser")
+        .then(async ({ BrowserMultiFormatReader }) => {
+          if (stop) return;
+          const reader = new BrowserMultiFormatReader();
+          controls = await reader.decodeFromVideoElement(video, (result) => {
+            const value = result?.getText();
+            if (value) accept(value);
+          });
+        })
+        .catch((e: Error) => onErrorRef.current(e.message || "This phone could not start the barcode reader."));
+    }
+
     return () => {
       stop = true;
-      stream?.getTracks().forEach((t) => t.stop());
+      controls?.stop();
+      stream.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
     };
   }, [live, once]);
 
   return (
     <div className="overflow-hidden rounded-xl border border-line bg-ink">
       {live ? (
-        <video ref={videoRef} className="aspect-video w-full object-cover" muted playsInline />
+        <video ref={videoRef} className="aspect-video w-full object-cover" muted playsInline autoPlay />
       ) : (
         <button
           type="button"
           className="flex aspect-video w-full flex-col items-center justify-center gap-2 text-paper"
-          onClick={() => setLive(true)}
+          onClick={() => void start()}
         >
           <Camera size={28} />
           {label ?? "Scan barcode"}
@@ -752,6 +781,7 @@ function SettingsPane({ role }: { role: "admin" | "staff" }) {
     setBusy(true);
     try {
       if (role === "staff") await leaveShop();
+      await clearTestSession();
       await signOut();
     } catch {
       setBusy(false);

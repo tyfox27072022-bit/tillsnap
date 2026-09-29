@@ -227,15 +227,42 @@ async function migrateNeon(pool: import("pg").Pool): Promise<void> {
  */
 export function getSql(): Promise<Sql> {
   if (onCloudflareWorkers() && !currentDatabaseUrl()) {
-    return Promise.reject(
-      new Error("DATABASE_URL is not set on Cloudflare. Add a Postgres connection string in the Worker settings."),
-    );
+    sqlPromise ??= createStoreSql().catch((err) => {
+      sqlPromise = null;
+      throw err;
+    });
+    return sqlPromise;
   }
   sqlPromise ??= createSql().catch((err) => {
     sqlPromise = null; // don't memoize failures — let the next call retry
     throw err;
   });
   return sqlPromise;
+}
+
+/** Live site with no Postgres: one SQLite Durable Object that deploys with the worker. */
+function createStoreSql(): Promise<Sql> {
+  type StoreBinding = {
+    idFromName: (name: string) => unknown;
+    get: (id: unknown) => { fetch: (input: string, init?: RequestInit) => Promise<Response> };
+  };
+  const env = (globalThis as typeof globalThis & { __TILLSNAP_ENV?: { TILLSNAP?: StoreBinding } }).__TILLSNAP_ENV;
+  const binding = env?.TILLSNAP;
+  if (!binding) {
+    return Promise.reject(new Error("The live shop store is not connected yet. Redeploy TillSnap."));
+  }
+  const stub = binding.get(binding.idFromName("tillsnap"));
+  return Promise.resolve(
+    toSql(async <T>(text: string, params: unknown[]) => {
+      const res = await stub.fetch("https://store/sql", {
+        method: "POST",
+        body: JSON.stringify({ text, params }),
+      });
+      const json = (await res.json()) as { rows?: T[]; error?: string };
+      if (!res.ok) throw new Error(json.error || "Shop store query failed");
+      return json.rows ?? [];
+    }),
+  );
 }
 
 /**

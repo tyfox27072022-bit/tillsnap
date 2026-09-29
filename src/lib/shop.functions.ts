@@ -383,8 +383,8 @@ export const listSales = createServerFn({ method: "GET" })
     `;
     const month = await sql<{ cash: number; card: number }>`
       select
-        coalesce(sum(total_pence) filter (where method = 'cash'), 0) as cash,
-        coalesce(sum(total_pence) filter (where method = 'card'), 0) as card
+        coalesce(sum(case when method = 'cash' then total_pence else 0 end), 0) as cash,
+        coalesce(sum(case when method = 'card' then total_pence else 0 end), 0) as card
       from sales
       where shop_id = ${m.shopId}
         and voided = false

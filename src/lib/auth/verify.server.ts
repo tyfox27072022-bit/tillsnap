@@ -82,6 +82,9 @@ export async function getSessionUser(
  * - Auth disabled + no database -> the shared dev user id.
  */
 export async function requireUserId(bearerToken?: string): Promise<string> {
+  const { readTestCookie } = await import("../test-session.server");
+  const test = readTestCookie();
+  if (test) return test.id;
   if (!authConfigured && !gateIdentityEnabled()) {
     if (databaseConfigured) {
       throw new Error(

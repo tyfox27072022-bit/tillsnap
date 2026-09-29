@@ -1,4 +1,6 @@
 import { authClient, authEnabled } from "./client";
+import { useEffect, useState } from "react";
+import { readTestSession } from "@/lib/test-session";
 
 /** Normalized user shape used across the app, auth on or off. */
 export type AppUser = {
@@ -58,19 +60,37 @@ export function useCurrentUserState(): CurrentUserState {
   if (!authEnabled) return { user: DEV_USER, isPending: false };
   // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
   const { data, isPending } = authClient.useSession();
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
+  const [test, setTest] = useState<AppUser | null | undefined>(undefined);
+  // eslint-disable-next-line react-hooks/rules-of-hooks -- authEnabled is constant for the app's lifetime
+  useEffect(() => {
+    let cancel = false;
+    readTestSession()
+      .then((row) => {
+        if (!cancel) setTest(row);
+      })
+      .catch(() => {
+        if (!cancel) setTest(null);
+      });
+    return () => {
+      cancel = true;
+    };
+  }, []);
   const user = data?.user;
-  return {
-    user: user
-      ? {
-          id: user.id,
-          displayName: user.name ?? null,
-          primaryEmail: user.email ?? null,
-          profileImageUrl: user.image ?? null,
-          isDevFallback: false,
-        }
-      : null,
-    isPending,
-  };
+  if (user) {
+    return {
+      user: {
+        id: user.id,
+        displayName: user.name ?? null,
+        primaryEmail: user.email ?? null,
+        profileImageUrl: user.image ?? null,
+        isDevFallback: false,
+      },
+      isPending: false,
+    };
+  }
+  if (isPending || test === undefined) return { user: null, isPending: true };
+  return { user: test, isPending: false };
 }
 
 /**

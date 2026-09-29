@@ -3,12 +3,16 @@
   "name": "tillsnap",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat", "nodejs_compat_populate_process_env"],
-  "main": "./dist/server/index.js",
+  "main": "./cloudflare/worker.mjs",
   "no_bundle": true,
   "assets": {
     "directory": "./dist/client"
   },
   "rules": [{ "type": "ESModule", "globs": ["**/*.js", "**/*.mjs"] }],
+  "durable_objects": {
+    "bindings": [{ "name": "TILLSNAP", "class_name": "TillSnapStore" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["TillSnapStore"] }],
   "build": {
     "command": "DEPLOY_TARGET=cloudflare ./node_modules/.bin/vite build"
   }
