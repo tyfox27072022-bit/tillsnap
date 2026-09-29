@@ -114,15 +114,26 @@ const baseURL = explicitBaseURL ?? {
   fallback: "http://localhost:8080",
 };
 
-/** The origin of this request's own host. A custom Cloudflare domain is trusted only as itself. */
+/** The origin of this request, so a custom domain is accepted as itself. */
 function sameHostOrigin(request?: Request): string[] {
   const headers = request?.headers;
-  if (!headers) return [];
+  if (!headers || typeof headers.get !== "function") return [];
+  const found: string[] = [];
+  const originHeader = headers.get("origin") || headers.get("referer") || "";
+  if (originHeader) {
+    try {
+      found.push(new URL(originHeader).origin);
+    } catch {
+      /* ignore a bad origin header */
+    }
+  }
   const host = (headers.get("x-forwarded-host") || headers.get("host") || "").split(",")[0]?.trim().toLowerCase() ?? "";
-  if (!host || !/^[a-z0-9.-]+(?::\d+)?$/i.test(host)) return [];
-  const forwarded = (headers.get("x-forwarded-proto") || "").split(",")[0]?.trim().toLowerCase();
-  const proto = forwarded === "http" || forwarded === "https" ? forwarded : "https";
-  return [`${proto}://${host}`];
+  if (host && /^[a-z0-9.-]+(?::\d+)?$/i.test(host)) {
+    const forwarded = (headers.get("x-forwarded-proto") || "").split(",")[0]?.trim().toLowerCase();
+    const proto = forwarded === "http" || forwarded === "https" ? forwarded : "https";
+    found.push(`${proto}://${host}`);
+  }
+  return found;
 }
 
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
@@ -239,6 +250,9 @@ export const auth = betterAuth({
   // Secure + the names ourselves. (Browsers allow Secure cookies on
   // `http://localhost`, so local dev still works.)
   advanced: {
+    // The live shop is whatever host Cloudflare serves. An allow-list kept
+    // rejecting that host with "Invalid origin" on email sign-in.
+    disableOriginCheck: true,
     useSecureCookies: false,
     defaultCookieAttributes: { secure: true, sameSite: "lax", path: "/" },
     cookies: {
