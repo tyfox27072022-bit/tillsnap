@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
+import { authClient, authEnabled } from "@/lib/auth/client";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
@@ -50,19 +50,8 @@ function Login() {
         Get the app on this phone
       </Link>
       {authEnabled ? (
-        <div className="mt-6 space-y-3">
-          {GROK_PROVIDERS.map((p) => (
-            <button
-              key={p.providerId}
-              type="button"
-              className="w-full rounded-full border border-line bg-card px-4 py-3 font-semibold"
-              onClick={() => signIn(p.providerId, { callbackURL: "/" })}
-            >
-              Continue with {p.label}
-            </button>
-          ))}
-          <form className="space-y-2 rounded-xl border border-line bg-card p-4" onSubmit={submit}>
-            <p className="font-semibold">{mode === "up" ? "Create an account" : "Email sign-in"}</p>
+        <form className="mt-6 space-y-2 rounded-xl border border-line bg-card p-4" onSubmit={submit}>
+            <p className="font-semibold">{mode === "up" ? "Create an account" : "Sign in with email"}</p>
             {mode === "up" ? (
               <input
                 className="w-full rounded-xl border border-line bg-paper px-3 py-3"
@@ -100,7 +89,6 @@ function Login() {
               {mode === "up" ? "Already have an account" : "Need an account"}
             </button>
           </form>
-        </div>
       ) : (
         <p className="mt-4 text-sm text-muted">Sign-in is disabled.</p>
       )}
