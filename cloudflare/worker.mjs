@@ -1,4 +1,4 @@
-import app from "../dist/server/index.js";
+import app from "./index.js";
 export { TillSnapStore } from "./store.mjs";
 
 export default {
