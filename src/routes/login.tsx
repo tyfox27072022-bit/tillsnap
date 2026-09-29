@@ -1,11 +1,16 @@
 import { useState, type FormEvent } from "react";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { authClient, authEnabled } from "@/lib/auth/client";
+import { TEST_MANAGER_EMAIL, TEST_PASSWORD, TEST_STAFF_EMAIL, prepareTestAccounts } from "@/lib/seed-test-account";
 
-export const Route = createFileRoute("/login")({ component: Login });
+export const Route = createFileRoute("/login")({
+  loader: () => prepareTestAccounts(),
+  component: Login,
+});
 
 function Login() {
   const navigate = useNavigate();
+  const { ready } = Route.useLoaderData();
   const [mode, setMode] = useState<"in" | "up">("in");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -46,6 +51,18 @@ function Login() {
         TillSnap
       </Link>
       <p className="mt-2 text-muted">Managers and staff use the same sign-in. You pick your role after.</p>
+      {ready ? (
+        <div className="mt-4 rounded-xl border border-line bg-card p-4 text-sm">
+          <p className="font-semibold">Test accounts</p>
+          <p className="mt-2">
+            Manager: {TEST_MANAGER_EMAIL}
+            <br />
+            Staff: {TEST_STAFF_EMAIL}
+            <br />
+            Password: {TEST_PASSWORD}
+          </p>
+        </div>
+      ) : null}
       <Link to="/get" className="mt-3 text-sm font-semibold text-accent">
         Get the app on this phone
       </Link>
