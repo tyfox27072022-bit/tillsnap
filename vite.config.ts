@@ -162,7 +162,9 @@ export default defineConfig(({ command, isPreview }) => {
   },
   resolve: { tsconfigPaths: true },
   plugins: [
-    ...(forCloudflare ? [cloudflare({ viteEnvironment: { name: "ssr" } })] : []),
+    ...(forCloudflare
+      ? [cloudflare({ viteEnvironment: { name: "ssr" }, configPath: "wrangler.vite.jsonc" })]
+      : []),
     pgliteBootstrapPlugin(),
     // Before tanstackStart so /auth/popup never falls through to the SPA.
     authPopupPlugin(),
