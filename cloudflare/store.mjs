@@ -82,9 +82,10 @@ const STARTER = [
   ["5010182997204", "Washing-up liquid", 149, 6, "Household"],
 ];
 
-export class TillSnapStore extends DurableObject {
+export class TillSnapStore {
   constructor(ctx, env) {
-    super(ctx, env);
+    this.ctx = ctx;
+    this.env = env;
     ctx.blockConcurrencyWhile(async () => {
       const sql = ctx.storage.sql;
       for (const statement of SCHEMA.split(";").map((s) => s.trim()).filter(Boolean)) {
