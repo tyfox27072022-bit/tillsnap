@@ -172,11 +172,18 @@ const grokOAuthPlugin = authConfigured
     })
   : null;
 
+const onWorkers =
+  typeof navigator !== "undefined" && navigator.userAgent === "Cloudflare-Workers";
+
 export const auth = betterAuth({
   baseURL,
   // Deployed apps inject BETTER_AUTH_SECRET. Preview: process-stable secret on
   // globalThis so HMR doesn't invalidate PGLite-backed sessions (see above).
-  secret: env("BETTER_AUTH_SECRET") ?? previewAuthSecret(),
+  // Workers forbid randomBytes during module startup, so a missing secret must
+  // not mint one here. Set BETTER_AUTH_SECRET on the Worker.
+  secret:
+    env("BETTER_AUTH_SECRET") ??
+    (onWorkers ? "tillsnap-set-BETTER_AUTH_SECRET" : previewAuthSecret()),
   database,
 
   // CSRF / origin check for credentialed auth POSTs (email sign-up/sign-in, …).
