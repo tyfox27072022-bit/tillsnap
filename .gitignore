@@ -1,0 +1,12 @@
+node_modules
+dist
+.output
+.vercel
+.wrangler
+.grok
+screenshots
+artifacts
+*.log
+.env
+.env.*
+!.env.example
