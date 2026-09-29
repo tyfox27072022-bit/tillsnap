@@ -221,7 +221,6 @@ export const saveProduct = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     const m = await assertOpen(context.userId);
     if (!m) throw new Error("Join a shop first.");
-    if (m.role !== "admin") throw new Error("Only the manager can add or reprice products.");
     const sql = await getSql();
     await sql`
       insert into products (shop_id, barcode, name, price_pence, stock, low_stock_at, category, updated_at)

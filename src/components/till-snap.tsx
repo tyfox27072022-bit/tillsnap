@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
-import { Bell, Camera, LayoutGrid, ScanBarcode, Settings, ShoppingBag, Store } from "lucide-react";
+import { Bell, Camera, LayoutGrid, Plus, ScanBarcode, Settings, ShoppingBag, Store } from "lucide-react";
 import { signOut } from "@/lib/auth/client";
 import { clearTestSession } from "@/lib/test-session";
 import { LangProvider, LANGS, useI18n } from "@/lib/i18n";
@@ -234,7 +234,7 @@ function Onboard({ onReady }: { onReady: (s: Shop) => void }) {
   );
 }
 
-type Tab = "scan" | "shelf" | "till" | "desk" | "settings";
+type Tab = "scan" | "shelf" | "till" | "add" | "desk" | "settings";
 
 function Floor({ shop, bootError }: { shop: Shop; bootError: string }) {
   const { t } = useI18n();
@@ -287,6 +287,7 @@ function Floor({ shop, bootError }: { shop: Shop; bootError: string }) {
       : [
           ["till", t.till, ShoppingBag],
           ["scan", t.scan, ScanBarcode],
+          ["add", t.add, Plus],
           ["shelf", t.shelf, LayoutGrid],
           ["settings", t.settings, Settings],
         ];
@@ -358,6 +359,9 @@ function Floor({ shop, bootError }: { shop: Shop; bootError: string }) {
           />
         ) : null}
         {tab === "settings" ? <SettingsPane role={shop.role} /> : null}
+        {tab === "add" && shop.role === "staff" ? (
+          <AddProductForm products={products} onChange={load} onError={setError} />
+        ) : null}
         {tab === "desk" && shop.role === "admin" ? (
           <Desk
             shop={shop}
@@ -828,6 +832,85 @@ function SettingsPane({ role }: { role: "admin" | "staff" }) {
   );
 }
 
+function AddProductForm({
+  products,
+  onChange,
+  onError,
+}: {
+  products: Product[];
+  onChange: () => Promise<void>;
+  onError: (m: string) => void;
+}) {
+  const [form, setForm] = useState({
+    name: "",
+    barcode: "",
+    price: "1.00",
+    stock: "0",
+    category: "Grocery",
+  });
+
+  return (
+    <form
+      className="space-y-2 rounded-xl border border-line bg-card p-4"
+      onSubmit={(e) => {
+        e.preventDefault();
+        const pounds = Number(form.price);
+        saveProduct({
+          data: {
+            name: form.name,
+            barcode: form.barcode.trim(),
+            pricePence: Math.round(pounds * 100),
+            stock: Number(form.stock) || 0,
+            lowStockAt: 3,
+            category: form.category,
+          },
+        })
+          .then(() => {
+            setForm({ name: "", barcode: "", price: "1.00", stock: "0", category: form.category });
+            return onChange();
+          })
+          .catch((err: Error) => onError(err.message));
+      }}
+    >
+      <h2 className="text-xl">Add a product</h2>
+      <BarcodeCam
+        once
+        onError={onError}
+        onCode={(barcode) => {
+          const existing = products.find((p) => p.barcode === barcode);
+          setForm((current) => ({
+            ...current,
+            barcode,
+            name: existing?.name ?? current.name,
+            price: existing ? (existing.pricePence / 100).toFixed(2) : current.price,
+            stock: existing ? String(existing.stock) : current.stock,
+            category: existing?.category ?? current.category,
+          }));
+        }}
+      />
+      <Field label="Name" value={form.name} onChange={(name) => setForm({ ...form, name })} />
+      <Field label="Barcode" value={form.barcode} onChange={(barcode) => setForm({ ...form, barcode })} />
+      <Field label="Price (£)" value={form.price} onChange={(price) => setForm({ ...form, price })} />
+      <Field label="Stock" value={form.stock} onChange={(stock) => setForm({ ...form, stock })} />
+      <label className="block text-sm font-medium">
+        Category
+        <select
+          className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-3"
+          value={form.category}
+          onChange={(e) => setForm({ ...form, category: e.target.value })}
+        >
+          {["Grocery", "Drinks", "Snacks", "Household", "Other"].map((c) => (
+            <option key={c}>{c}</option>
+          ))}
+        </select>
+      </label>
+      <button type="submit" className="w-full rounded-full bg-ink px-4 py-3 font-semibold text-paper">
+        Save product
+      </button>
+    </form>
+  );
+}
+
 function Desk({
   shop,
   products,
@@ -841,13 +924,6 @@ function Desk({
   onChange: () => Promise<void>;
   onError: (m: string) => void;
 }) {
-  const [form, setForm] = useState({
-    name: "",
-    barcode: "",
-    price: "1.00",
-    stock: "0",
-    category: "Grocery",
-  });
   const [sales, setSales] = useState<Array<{ id: number; totalPence: number; createdAt: string; method: string; voided: boolean }>>([]);
   const [month, setMonth] = useState({ cash: 0, card: 0 });
   const out = products.filter((p) => p.stock <= 0).length;
@@ -897,61 +973,7 @@ function Desk({
           </button>
         </article>
       ))}
-      <form
-        className="space-y-2 rounded-xl border border-line bg-card p-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const pounds = Number(form.price);
-          saveProduct({
-            data: {
-              name: form.name,
-              barcode: form.barcode.trim(),
-              pricePence: Math.round(pounds * 100),
-              stock: Number(form.stock) || 0,
-              lowStockAt: 3,
-              category: form.category,
-            },
-          })
-            .then(onChange)
-            .catch((err: Error) => onError(err.message));
-        }}
-      >
-        <h2 className="text-xl">Add a product</h2>
-        <BarcodeCam
-          once
-          onError={onError}
-          onCode={(barcode) => {
-            const existing = products.find((p) => p.barcode === barcode);
-            setForm((current) => ({
-              ...current,
-              barcode,
-              name: existing?.name ?? current.name,
-              price: existing ? (existing.pricePence / 100).toFixed(2) : current.price,
-              stock: existing ? String(existing.stock) : current.stock,
-              category: existing?.category ?? current.category,
-            }));
-          }}
-        />
-        <Field label="Name" value={form.name} onChange={(name) => setForm({ ...form, name })} />
-        <Field label="Barcode" value={form.barcode} onChange={(barcode) => setForm({ ...form, barcode })} />
-        <Field label="Price (£)" value={form.price} onChange={(price) => setForm({ ...form, price })} />
-        <Field label="Stock" value={form.stock} onChange={(stock) => setForm({ ...form, stock })} />
-        <label className="block text-sm font-medium">
-          Category
-          <select
-            className="mt-1 w-full rounded-xl border border-line bg-paper px-3 py-3"
-            value={form.category}
-            onChange={(e) => setForm({ ...form, category: e.target.value })}
-          >
-            {["Grocery", "Drinks", "Snacks", "Household", "Other"].map((c) => (
-              <option key={c}>{c}</option>
-            ))}
-          </select>
-        </label>
-        <button type="submit" className="w-full rounded-full bg-ink px-4 py-3 font-semibold text-paper">
-          Save product
-        </button>
-      </form>
+      <AddProductForm products={products} onChange={onChange} onError={onError} />
       <div>
         <h2 className="text-xl">Recent sales</h2>
         {sales.length === 0 ? <p className="mt-1 text-muted">No sales yet.</p> : null}
