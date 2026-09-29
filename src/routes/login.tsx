@@ -23,7 +23,13 @@ function Login() {
         if (res.error) throw new Error(res.error.message || "Could not create the account");
       } else {
         const res = await authClient.signIn.email({ email, password });
-        if (res.error) throw new Error(res.error.message || "Could not sign in");
+        if (res.error) {
+          const message = res.error.message || "Could not sign in";
+          if (/invalid email or password/i.test(message)) {
+            throw new Error("That email or password is not right. New here? Tap Need an account.");
+          }
+          throw new Error(message);
+        }
       }
       await navigate({ to: "/" });
     } catch (err) {

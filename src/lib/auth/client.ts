@@ -25,6 +25,13 @@ export const authClient = createAuthClient({
       if (token) ctx.headers.set("Authorization", `Bearer ${token}`);
       return ctx;
     },
+    onSuccess(ctx) {
+      // Email sign-in sets a cookie. In the preview iframe that cookie is
+      // partitioned, so keep the session token the bearer plugin returns and
+      // send it on the next request.
+      const token = ctx.response.headers.get("set-auth-token");
+      if (token) setBearerToken(token);
+    },
   },
 });
 
