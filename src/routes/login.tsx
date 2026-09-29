@@ -35,7 +35,8 @@ function Login() {
 
   return (
     <main className="mx-auto grid min-h-screen max-w-md content-center px-5 py-12">
-      <Link to="/" className="display text-4xl">
+      <Link to="/" className="display flex items-center gap-2 text-5xl">
+        <span className="mark scale-150" aria-hidden />
         TillSnap
       </Link>
       <p className="mt-2 text-muted">Managers and staff use the same sign-in. You pick your role after.</p>

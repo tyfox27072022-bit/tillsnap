@@ -41,15 +41,19 @@ function GetApp() {
   };
 
   return (
-    <div className="mx-auto max-w-3xl px-5 pb-20">
-      <header className="flex items-center justify-between py-5">
-        <Link to="/" className="display text-2xl">
-          TillSnap
-        </Link>
-        <Link to="/login" className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-paper">
-          Sign in
-        </Link>
+    <div className="pb-20">
+      <header className="bg-ink text-paper">
+        <div className="mx-auto flex max-w-3xl items-center justify-between px-5 py-4">
+          <Link to="/" className="display flex items-center gap-2 text-2xl">
+            <span className="mark" aria-hidden />
+            TillSnap
+          </Link>
+          <Link to="/login" className="rounded-full bg-paper px-4 py-2 text-sm font-semibold text-ink">
+            Sign in
+          </Link>
+        </div>
       </header>
+      <div className="mx-auto max-w-3xl px-5 pt-8">
 
       <p className="text-sm font-semibold tracking-wide text-accent uppercase">On your phone</p>
       <h1 className="display mt-2 text-5xl leading-none">Get the app.</h1>
@@ -105,6 +109,7 @@ function GetApp() {
           </p>
         ) : null}
       </section>
+      </div>
     </div>
   );
 }

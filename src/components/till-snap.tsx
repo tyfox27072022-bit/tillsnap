@@ -292,10 +292,13 @@ function Floor({ shop, bootError }: { shop: Shop; bootError: string }) {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-6xl flex-col pb-28">
-      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur">
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 bg-ink px-4 py-3 text-paper">
         <div>
-          <p className="display text-2xl leading-none">TillSnap</p>
-          <p className="mt-1 text-sm text-muted">
+          <p className="display flex items-center gap-2 text-2xl leading-none">
+            <span className="mark" aria-hidden />
+            TillSnap
+          </p>
+          <p className="mt-1 text-sm text-paper/70">
             {shop.name} · {shop.role === "admin" ? t.managerRole : t.staffRole}
           </p>
         </div>
@@ -313,7 +316,7 @@ function Floor({ shop, bootError }: { shop: Shop; bootError: string }) {
           ) : null}
           <button
             type="button"
-            className="rounded-full border border-line bg-card px-4 py-2 text-sm font-semibold"
+            className="rounded-full border border-paper/40 px-4 py-2 text-sm font-semibold"
             onClick={() => setTab("settings")}
           >
             {t.settings}

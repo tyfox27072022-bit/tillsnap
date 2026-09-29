@@ -30,7 +30,17 @@
   h2,
   .display {
     font-family: var(--font-display);
+    font-optical-sizing: auto;
   }
+}
+
+.mark {
+  display: inline-block;
+  width: 1.35rem;
+  height: 1.35rem;
+  background: #c4511a;
+  clip-path: polygon(0 18%, 38% 18%, 100% 50%, 38% 82%, 0 82%, 0 18%);
+  box-shadow: inset 4px 0 0 #2f5d45;
 }
 
 @media (prefers-reduced-motion: reduce) {
