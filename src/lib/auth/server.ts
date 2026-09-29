@@ -103,27 +103,37 @@ const LOCAL_DEV_ORIGINS: string[] = [
   "http://127.0.0.1:8080",
   "http://[::1]:8080",
 ];
+const LIVE_HOSTS = ["*.workers.dev", "*.pages.dev"];
 const baseURL = explicitBaseURL ?? {
   // Include loopback hosts so dynamic baseURL resolves for local email/password
-  // (not only the preview wildcard).
-  allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]"],
+  // (not only the preview wildcard). Workers and Pages hosts are the live site.
+  allowedHosts: [...previewAllowedHosts, "localhost", "127.0.0.1", "[::1]", ...LIVE_HOSTS],
   // `auto` → trust both http:// and https:// expansions of allowedHosts
   // (preview is https; local dev is http).
   protocol: "auto" as const,
   fallback: "http://localhost:8080",
 };
 
+/** The origin of this request's own host. A custom Cloudflare domain is trusted only as itself. */
+function sameHostOrigin(request?: Request): string[] {
+  const headers = request?.headers;
+  if (!headers) return [];
+  const host = (headers.get("x-forwarded-host") || headers.get("host") || "").split(",")[0]?.trim().toLowerCase() ?? "";
+  if (!host || !/^[a-z0-9.-]+(?::\d+)?$/i.test(host)) return [];
+  const forwarded = (headers.get("x-forwarded-proto") || "").split(",")[0]?.trim().toLowerCase();
+  const proto = forwarded === "http" || forwarded === "https" ? forwarded : "https";
+  return [`${proto}://${host}`];
+}
+
 // Origins Better Auth accepts on credentialed POSTs (sign-up/sign-in, etc.).
 // Missing entries here surface as FORBIDDEN "Invalid origin".
-const trustedOrigins: string[] = explicitBaseURL
-  ? [explicitBaseURL, ...LOCAL_DEV_ORIGINS]
-  : [
-      // Host wildcards (matched against Origin's host)
-      ...previewAllowedHosts,
-      // Full-origin wildcards (matched against Origin)
-      ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
-      ...LOCAL_DEV_ORIGINS,
-    ];
+const trustedOrigins = (request?: Request) => [
+  ...(explicitBaseURL ? [explicitBaseURL] : []),
+  ...previewAllowedHosts.flatMap((host) => [`https://${host}`, `http://${host}`]),
+  ...LOCAL_DEV_ORIGINS,
+  ...LIVE_HOSTS.flatMap((host) => [`https://${host}`, `http://${host}`]),
+  ...sameHostOrigin(request),
+];
 
 const databaseUrl = env("DATABASE_URL");
 

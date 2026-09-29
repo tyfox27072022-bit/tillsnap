@@ -71,4 +71,14 @@ export async function seedTestAccounts() {
       on conflict (user_id, shop_id) do nothing
     `;
   }
+  await sql`
+    insert into memberships (user_id, shop_id, role)
+    values ('test-manager', ${shopId}, 'admin')
+    on conflict (user_id, shop_id) do nothing
+  `;
+  await sql`
+    insert into memberships (user_id, shop_id, role)
+    values ('test-staff', ${shopId}, 'staff')
+    on conflict (user_id, shop_id) do nothing
+  `;
 }

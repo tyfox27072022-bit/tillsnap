@@ -27,10 +27,14 @@ function Login() {
         const res = await authClient.signUp.email({ email, password, name: name || email });
         if (res.error) throw new Error(res.error.message || "Could not create the account");
       } else {
-        const res = await authClient.signIn.email({ email, password });
-        if (res.error) {
-          const test = await signInTestAccount({ data: { email, password } });
-          if (!test.ok) {
+        const test = await signInTestAccount({ data: { email, password } });
+        if (!test.ok) {
+          const res = await authClient.signIn.email({ email, password });
+          if (res.error) {
+            const message = res.error.message || "Could not sign in";
+            if (/invalid origin/i.test(message)) {
+              throw new Error("This site address is not allowed to sign in yet. Redeploy, then try again.");
+            }
             throw new Error("That email or password is not right. New here? Tap Need an account.");
           }
         }
