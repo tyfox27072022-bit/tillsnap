@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from "react";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 
 export const Route = createFileRoute("/login")({ component: Login });
@@ -35,8 +35,13 @@ function Login() {
 
   return (
     <main className="mx-auto grid min-h-screen max-w-md content-center px-5 py-12">
-      <h1 className="display text-4xl">TillSnap</h1>
+      <Link to="/" className="display text-4xl">
+        TillSnap
+      </Link>
       <p className="mt-2 text-muted">Managers and staff use the same sign-in. You pick your role after.</p>
+      <Link to="/get" className="mt-3 text-sm font-semibold text-accent">
+        Get the app on this phone
+      </Link>
       {authEnabled ? (
         <div className="mt-6 space-y-3">
           {GROK_PROVIDERS.map((p) => (

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "@tanstack/react-router";
 import { Bell, Camera, LayoutGrid, ScanBarcode, Settings, ShoppingBag, Store } from "lucide-react";
 import { signOut } from "@/lib/auth/client";
 import { LangProvider, LANGS, useI18n } from "@/lib/i18n";
@@ -289,8 +290,8 @@ function Floor({ shop, bootError }: { shop: Shop; bootError: string }) {
         ];
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-6xl flex-col pb-24">
-      <header className="flex items-center justify-between gap-3 px-4 pt-4">
+    <div className="mx-auto flex min-h-screen max-w-6xl flex-col pb-28">
+      <header className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-line bg-paper/95 px-4 py-3 backdrop-blur">
         <div>
           <p className="display text-2xl leading-none">TillSnap</p>
           <p className="mt-1 text-sm text-muted">
@@ -358,18 +359,20 @@ function Floor({ shop, bootError }: { shop: Shop; bootError: string }) {
           />
         ) : null}
       </div>
-      <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-card">
-        <div className="mx-auto flex max-w-6xl">
+      <nav className="fixed inset-x-0 bottom-0 border-t border-line bg-card/95 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl px-1 pb-[env(safe-area-inset-bottom)]">
           {tabs.map(([id, label, Icon]) => (
             <button
               key={id}
               type="button"
-              className={`flex flex-1 flex-col items-center gap-1 py-3 text-xs font-semibold ${
+              className={`flex flex-1 flex-col items-center gap-1 py-2.5 text-[11px] font-semibold ${
                 tab === id ? "text-accent" : "text-muted"
               }`}
               onClick={() => setTab(id)}
             >
-              <Icon size={20} />
+              <span className={`rounded-full px-3 py-1 ${tab === id ? "bg-accent/10" : ""}`}>
+                <Icon size={20} />
+              </span>
               {label}
               {id === "till" && basket.length ? ` (${basket.reduce((n, l) => n + l.qty, 0)})` : ""}
             </button>
@@ -706,6 +709,9 @@ function SettingsPane({ role }: { role: "admin" | "staff" }) {
   return (
     <section className="mx-auto max-w-lg space-y-4">
       <h2 className="text-3xl">{t.settings}</h2>
+      <Link to="/get" className="block rounded-xl border border-line bg-card px-4 py-4 font-semibold">
+        Get the app on this phone
+      </Link>
       <label className="block text-sm font-medium">
         {t.language}
         <select
